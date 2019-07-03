@@ -1,0 +1,272 @@
+#!/usr/bin/env node
+var lib = require('../index.js');
+
+var args = [];
+process.argv.forEach((val, index, array) => {
+  if (index > 1) {
+    args.push(val);
+  }
+});
+
+// Get all http options.
+var hostname = nextArg('-hostname');
+var sn = nextArg('-sn');
+var key = nextArg('-key');
+
+if (!hostname || !sn || !key || args.length < 6) {
+  console.log('"-hostname", "-sn" and "-key" must be offer.');
+  return;
+}
+
+// Build http options object
+var httpOptions = {
+  hostname: hostname,
+  sn: sn,
+  key: key
+};
+
+// Check params conflict.
+if (argsConflict()) {
+  console.log('Params conflict. Only could execute one of "list", "scan", "artifact", "download" and "report" at one time.');
+  return;
+}
+
+// Check if will invoke api.
+if (regExists(/^\-list/i)) {
+  var listObj = { };
+  var before = nextArg('-list-before');
+  var after = nextArg('-list-after');
+  var pageSize = nextArg('-list-page-size');
+  var pageIndex = nextArg('-list-page-index');
+
+  try {
+    if (before) {
+      if (isNaN(before)) {
+        console.log('"-list-before" must be number.');
+        return;
+      }
+      var num = parseInt(before);
+      listObj.before = num;
+    }
+
+    if (after) {
+      if (isNaN(after)) {
+        console.log('"-list-after" must be number.');
+        return;
+      }
+      var num = parseInt(after);
+      listObj.after = num;
+    }
+    
+    if (pageSize) {
+      if (isNaN(pageSize)) {
+        console.log('"-list-page-size" must be number.');
+        return;
+      }
+      var num = parseInt(pageSize);
+      listObj.pageSize = num;
+    }
+    
+    if (pageIndex) {
+      if (isNaN(pageIndex)) {
+        console.log('"-list-page-index" must be number.');
+        return;
+      }
+      var num = parseInt(pageIndex);
+      listObj.pageIndex = num;
+    }
+  } catch (ex) {
+    console.log(ex);
+    return;
+  }
+
+  lib.list(httpOptions, listObj).then(function (result) {
+    // console.log(result);
+    console.log((typeof result === 'object') ? JSON.stringify(result, null, "  ") : result);
+  }).catch(function (ex) {
+    console.log(ex);
+  });
+
+  return;
+}
+
+if (regExists(/^\-report/i)) {
+  var reportObj = { };
+  var resource = nextArg('-report-resource');
+  var allInfo = nextArg('-report-all-info');
+
+  if (!resource) {
+    console.log('"-report-resource" is required.');
+    return;
+  }
+  reportObj.resource = resource;
+
+  try {
+    if (allInfo) {
+      if (isNaN(allInfo)) {
+        console.log('"-report-all-info" must be "1" or "0".');
+        return;
+      }
+      var num = parseInt(allInfo);
+      if (num !== 0 && num !== 1) {
+        console.log('"-report-all-info" must be "1" or "0".');
+        return;
+      }
+      reportObj.allInfo = (allInfo === '1' ? true : false);
+    }
+  } catch (ex) {
+    console.log('"-report-all-info" must be "1" or "0".');
+    return;
+  }
+
+  lib.report(httpOptions, reportObj).then(function (result) {
+    // console.log(result);
+    console.log((typeof result === 'object') ? JSON.stringify(result, null, "  ") : result);
+  }).catch(function (ex) {
+    console.log(ex);
+  });
+
+  return;
+}
+
+if (regExists(/^\-artifact/i)) {
+  var artifactSha256 = nextArg('-artifact-sha256');
+  if (!artifactSha256) {
+    console.log('"-artifact-sha256" is required.');
+    return;
+  }
+
+  lib.artifact(httpOptions, artifactSha256).then(function (result) {
+    // console.log(result);
+    console.log((typeof result === 'object') ? JSON.stringify(result, null, "  ") : result);
+  }).catch(function (ex) {
+    console.log(ex);
+  });
+
+  return;
+}
+
+if (regExists(/^\-scan/i)) {
+  var scanFilePath = nextArg('-scan-file-path');
+  if (!scanFilePath) {
+    console.log('"-scan-file-path" is required.');
+    return;
+  }
+
+  lib.scan(httpOptions, scanFilePath).then(function (result) {
+    console.log(result);
+  }).catch(function (ex) {
+    console.log(ex);
+  });
+  return;
+}
+
+if (regExists(/^\-download/i)) {
+  var downloadObj = { };
+  var sha256 = nextArg('-download-sha256');
+  var engine = nextArg('-download-engine');
+  var env = nextArg('-download-env');
+  var type = nextArg('-download-type');
+  var filePath = nextArg('-download-file-path');
+
+  if (!sha256) {
+    console.log('"-download-sha256" is required.');
+    return;
+  } else {
+    downloadObj.sha256 = sha256;
+  }
+
+  if (!engine) {
+    console.log('"-download-engine" is required.');
+    return;
+  } else {
+    downloadObj.engine = engine;
+  }
+
+  if (!env) {
+    console.log('"-download-env" is required.');
+    return;
+  } else {
+    downloadObj.env = env;
+  }
+
+  if (!type) {
+    console.log('"-download-type" is required.');
+    return;
+  } else {
+    downloadObj.type = type;
+  }
+
+  if (!filePath) {
+    console.log('"-download-file-path" is required.');
+    return;
+  } else {
+    downloadObj.filePath = filePath;
+  }
+
+  lib.download(httpOptions, downloadObj).then(function (result) {
+    console.log(result);
+  }).catch(function (ex) {
+    console.log(ex);
+  });
+
+  return;
+}
+
+console.log('Please execute one of "list", "scan", "artifact", "download" and "report".');
+
+/**************************** Help methods ****************************/
+
+// If regex exists in args.
+function regExists(reg) {
+  return args.findIndex(a => reg.test(a)) >= 0;
+}
+
+// If string exists in args.
+function strExists(str) {
+  return args.findIndex(a => a.toLowerCase() === str) >= 0;
+}
+
+// Index of string in args.
+function strIndex(str) {
+  return args.findIndex(a => a.toLowerCase() === str);
+}
+
+// Get next arg in args.
+function nextArg(str) {
+  var index = strIndex(str);
+  if (index >= 0 && args.length > index) {
+    return args[index + 1];
+  } else {
+    return '';
+  }
+}
+
+// If params conflict.
+function argsConflict() {
+  var t1 = 0;
+  args.forEach(a => {
+    if (/^\-list/i.test(a)) t1++;
+  });
+  var t2 = 0;
+  args.forEach(a => {
+    if (/^\-report/i.test(a)) t2++;
+  });
+  var t3 = 0;
+  args.forEach(a => {
+    if (/^\-scan/i.test(a)) t3++;
+  });
+  var t4 = 0;
+  args.forEach(a => {
+    if (/^\-download/i.test(a)) t4++;
+  });
+  var t5 = 0;
+  args.forEach(a => {
+    if (/^\-artifact/i.test(a)) t5++;
+  });
+  var tt = t1 + t2 + t3 + t4 + t5;
+  if (tt !== t1 && tt != t2 && tt != t3 && tt != t4 && tt != t5) {
+    return true;
+  }
+  return false;
+}
